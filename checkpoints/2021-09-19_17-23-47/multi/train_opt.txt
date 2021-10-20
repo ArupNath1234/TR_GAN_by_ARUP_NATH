@@ -1,0 +1,25 @@
+-----------------Options-----------------
+D_interval: 20
+N_d: 90
+N_p: 5
+N_z: 50
+batchsize: 5
+beta1: 0.5
+beta2: 0.999
+checkpoints_dir: ./checkpoints\2021-09-19_17-23-47
+count_epoch: 0
+dataroot: cfp-dataset/Data/Images
+epochs: 5000
+gpu_ids: [0]
+input_nc: 3
+is_Train: True
+lr_D: 0.0002
+lr_G: 0.0002
+model: multi
+output_nc: 3
+pretrained_D: None
+pretrained_G: None
+save_epoch_freq: 5
+test_dir: ./result\2021-09-19_17-23-47
+w_L1: 1
+-------------------End-------------------

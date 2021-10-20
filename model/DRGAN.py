@@ -241,6 +241,7 @@ class Multi_DRGAN(BaseModel):
         self.noise = []
         self.frontal_image = [[] for r in range(len(self.pose))]
         self.profile_image = [[] for r in range(len(self.pose))]
+
         # self.real_frontal_pose = [[] for r in range(len(self.pose))]
         # self.real_profile_pose = [[] for r in range(len(self.pose))]
         # self.frontal_id = [[] for r in range(len(self.pose))]
@@ -330,6 +331,7 @@ class Multi_DRGAN(BaseModel):
                 self.syn_image.append(self.G(self.image[k], self.input_pose[k], self.noise[k]))
             else:
                 self.syn_image.append(self.G(self.profile_image[k], self.input_pose[k], self.noise[k]))
+                
             self.syn.append(self.D(self.syn_image[k]))
             self.syn_identity.append(self.syn[k][:, :self.N_d+1])
             self.syn_pose.append(self.syn[k][:, self.N_d+1:])
