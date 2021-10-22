@@ -78,7 +78,7 @@ def get_id(path):
     >>> get_id(path)
     34
     """
-    p = re.compile(r'\d{3}')
+    p = re.compile(r'\d{4}')
     
     k= re.findall(p, path)
 
@@ -103,10 +103,16 @@ def get_pose(path):
     >>> get_pose(path)
     False
     """
-    q = re.compile(r'[-]\d{3}')
-    k= re.findall(q, path)
-    pose=int(k[0][1:4])
-    return int(pose)  
+    q1 = re.compile(r'[F][r][o][n][t]')
+    k1= re.findall(q1, path)
+    q2 = re.compile(r'[P][r][o]')
+    k2 = re.findall(q2,path)
+
+    if len(k1)!=0 and k1[0]=='Front':
+        return 1
+    if len(k2)!=0 and k2[0]=='Pro':
+        return 2
+    return 3  
 
 
 def show_sample(sample):
