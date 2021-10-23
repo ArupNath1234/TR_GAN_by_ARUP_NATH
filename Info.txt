@@ -1,0 +1,4 @@
+Total images:
+train --> 413 subjects, 4625 Images
+test --> 101 subjects, 605 Images
+Total -->514 subjects, 5330 Images
