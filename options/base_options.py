@@ -27,7 +27,7 @@ class BaseOptions(object):
 
         self.parser.add_argument('--model', type=str, default='single', help='single/multi')
         self.parser.add_argument('--N_p', type=int, default=3, help='the sum of the poses')
-        self.parser.add_argument('--N_d', type=int, default=514, help='the sum of the identities')
+        self.parser.add_argument('--N_d', type=int, default=413, help='the sum of the identities')
         self.parser.add_argument('--N_z', type=int, default=50, help='the sum of the noise')
 
         self.parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
