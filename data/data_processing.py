@@ -78,7 +78,7 @@ def get_id(path):
     >>> get_id(path)
     34
     """
-    p = re.compile(r'\d{4}')
+    p = re.compile(r'\d{5}')
     
     k= re.findall(p, path)
 
