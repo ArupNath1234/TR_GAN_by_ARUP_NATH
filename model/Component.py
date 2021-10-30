@@ -276,7 +276,7 @@ class Discriminator(nn.Module):
     >>> output.size()
     torch.Size([4, 503])
     """
-    def __init__(self, N_p=3, N_d=483):
+    def __init__(self, N_p=3, N_d=413):
         super(Discriminator, self).__init__()
         conv_layers = [
             conv_unit(3, 32),                   #Bx32x96x96

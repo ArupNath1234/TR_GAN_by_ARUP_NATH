@@ -25,6 +25,8 @@ def CreateDataLoader(opt):
         if isinstance(batch[0], collections.Sequence):
             return [default_collate(b) for b in batch]
         return default_collate(batch)
-
+    print("No.of Images: ",len(dataset))
     dataloader = DataLoader(dataset, batch_size=opt.batchsize, shuffle=opt.is_Train, num_workers=4, collate_fn=my_collate)
+    print("DataLoader size = No. of Images / Batch Size")
+    print("DataLoader Size:",len(dataloader))
     return dataloader
