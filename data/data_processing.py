@@ -109,10 +109,10 @@ def get_pose(path):
     k2 = re.findall(q2,path)
 
     if len(k1)!=0 and k1[0]=='Front':
-        return 1
+        return 0
     if len(k2)!=0 and k2[0]=='Pro':
-        return 2
-    return 3  
+        return 1
+    return 2
 
 
 def show_sample(sample):
