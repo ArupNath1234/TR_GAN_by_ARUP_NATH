@@ -2,3 +2,4 @@
 *.ini
 model/main.py
 model/__pycache__/Component.cpython-38.pyc
+*.bak
