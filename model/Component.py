@@ -239,7 +239,7 @@ class Decoder(nn.Module):
     >>> output.size()
     torch.Size([4, 3, 96, 96])
     """
-    def __init__(self, N_p=3, N_z=50):
+    def __init__(self, N_p=2, N_z=50):
         super(Decoder, self).__init__()
         Fconv_layers = [
             Fconv_unit(320, 160),                   #Bx160x6x6
@@ -337,7 +337,7 @@ class Generator(nn.Module):
     >>> output.size()
     torch.Size([4, 3, 96, 96])
     """
-    def __init__(self, N_p=3, N_z=50, single=True):
+    def __init__(self, N_p=2, N_z=50, single=True):
         super(Generator, self).__init__()
         self.enc = Encoder()
         self.dec = Decoder(N_p, N_z)
@@ -360,7 +360,7 @@ class Discriminator(nn.Module):
     >>> output.size()
     torch.Size([4, 503])
     """
-    def __init__(self, N_p=3, N_d=413):
+    def __init__(self, N_p=2, N_d=500):
         super(Discriminator, self).__init__()
         #Because Discriminator uses same architecture as that of Encoder
         self.enc = Encoder() 
