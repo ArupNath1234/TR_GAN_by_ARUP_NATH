@@ -25,9 +25,11 @@ for epoch in range(opt.count_epoch + 1,  opt.epochs + 1):
     for i, data in enumerate(data_loader):
         model.forward(data)
 
-        model.optimize_G_parameters()
         if(i % opt.D_interval == 0): #D_interval=20
+            model.optimize_G_parameters(False)
             model.optimize_D_parameters()
+        else:
+            model.optimize_G_parameters(True)
 
         err.add(model.Loss_G.data.item(), model.Loss_D.data.item())
 

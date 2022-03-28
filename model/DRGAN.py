@@ -130,15 +130,17 @@ class Single_DRGAN(BaseModel):
         self.Loss_D = self.Loss_D_real_identity + self.Loss_D_real_pose + self.Loss_D_syn
         self.Loss_D.backward()
 
-    def optimize_G_parameters(self):
+    def optimize_G_parameters(self,temp):
         self.optimizer_G.zero_grad()
         self.backward_G()
-        self.optimizer_G.step()
+        if temp==True:
+          self.optimizer_G.step()
 
     def optimize_D_parameters(self):
         self.optimizer_D.zero_grad()
         self.backward_D()
         self.optimizer_D.step()
+        self.optimizer_G.step()
 
     def print_current_errors(self):
         print('Loss_G: {0} \t Loss_D: {1}'.format(self.Loss_G.data[0], self.Loss_D.data[0]))
