@@ -267,6 +267,45 @@ class Decoder(nn.Module):
         x = self.Fconv_layers(x)
         return x
 
+class Decoder_transformer(nn.Module):
+    """
+    Args:
+        N_p (int): The sum of the poses
+        N_z (int): The dimensions of the noise
+
+    >>> Dec = Decoder()
+    >>> input = Variable(torch.randn(4, 372))
+    >>> output = Dec(input)
+    >>> output.size()
+    torch.Size([4, 3, 96, 96])
+    
+
+"""
+    def __init__(self,N_p=2, N_z=50, img_size=96, patch_size=6, in_chans=3, num_classes=320, embed_dim=108, depth=6,
+                    num_heads=6, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
+                    drop_path_rate=0., norm_layer=nn.LayerNorm):
+        super().__init__()
+        self.fc = nn.Linear(320+N_p+N_z, 320*6*6)
+        self.embed1 = nn.Embedding(320*6*6, num_classes)
+       
+       
+        # stochastic depth decay rule
+        
+        self.decoder =  nn.TransformerDecoder(nn.TransformerDecoderLayer(d_model=num_classes, n_heads=num_heads, dropout=0.1), \
+                                             num_layers=patch_size, norm=nn.LayerNorm(normalized_shape=num_classes, eps=1e-6))
+        
+        # Classifier head
+        self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+
+
+    def forward(self, x, src_mask=None, src_key_padding_mask=None):
+            x = self.fc(x)
+            x=self.embed1(x)
+            output = self.decoder(x, mask=src_mask, src_key_padding_mask=src_key_padding_mask)
+            output = self.head(output)
+            output=output.view(4, 3, 96, 96)
+            return output
+
 
 
 class Encoder(nn.Module):
@@ -324,6 +363,54 @@ class Encoder(nn.Module):
         x = self.head(x)
         return x
 
+class Encoder_transformer(nn.Module):
+    """
+    The single version of the Encoder.
+
+    >>> Enc = Encoder()
+    >>> input = Variable(torch.randn(4, 3, 96, 96))
+    >>> output = Enc(input)
+    >>> output.size()
+    torch.Size([4, 320])
+    """
+    """ Vision Transformer with support for patch or hybrid CNN input stage
+    """
+    def __init__(self, img_size=96, patch_size=6, in_chans=3, num_classes=320, embed_dim=108, depth=6,
+                 num_heads=6, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
+                 drop_path_rate=0., norm_layer=nn.LayerNorm):
+        super().__init__()
+        self.num_classes = num_classes
+        self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
+        self.patch_embed = PatchEmbed(
+            img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
+        num_patches = self.patch_embed.num_patches
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
+        self.pos_drop = nn.Dropout(p=drop_rate)
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
+        
+        self.encoder = nn.TransformerEncoder(nn.TransformerEncoderLayer(d_model=embed_dim, n_heads=num_heads, dropout=0.1), \
+                                             num_layers=patch_size, norm=nn.LayerNorm(normalized_shape=num_classes, eps=1e-6))
+        
+        # Classifier head
+        self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+
+    def forward_features(self, x):
+        B = x.shape[0]
+        x = self.patch_embed(x)
+
+        cls_tokens = self.cls_token.expand(B, -1, -1)  
+        x = torch.cat((cls_tokens, x), dim=1)
+        x = x + self.pos_embed
+        x = self.pos_drop(x)
+        return x
+
+    def forward(self, x, src_mask=None, src_key_padding_mask=None):
+            x = self.forward_features(x)
+            output = self.encoder(x, mask=src_mask, src_key_padding_mask=src_key_padding_mask)
+            output = self.head(output)
+            return output
+
 
 class Generator(nn.Module):
     """
@@ -339,8 +426,8 @@ class Generator(nn.Module):
     """
     def __init__(self, N_p=2, N_z=50, single=True):
         super(Generator, self).__init__()
-        self.enc = Encoder()
-        self.dec = Decoder(N_p, N_z)
+        self.enc = Encoder_transformer()
+        self.dec = Decoder_transformer(N_p, N_z)
 
     def forward(self, input, pose, noise):
         x = self.enc(input)
@@ -363,7 +450,7 @@ class Discriminator(nn.Module):
     def __init__(self, N_p=2, N_d=500):
         super(Discriminator, self).__init__()
         #Because Discriminator uses same architecture as that of Encoder
-        self.enc = Encoder() 
+        self.enc = Encoder_transformer() 
         self.fc = nn.Linear(320, N_d+N_p+1)
 
     def forward(self,input):
