@@ -291,7 +291,7 @@ class Decoder_transformer(nn.Module):
        
         # stochastic depth decay rule
         
-        self.decoder =  nn.TransformerDecoder(nn.TransformerDecoderLayer(d_model=num_classes, n_heads=num_heads, dropout=0.1), \
+        self.decoder =  nn.TransformerDecoder(nn.TransformerDecoderLayer(d_model=num_classes, nhead=num_heads, dropout=0.1), \
                                              num_layers=patch_size, norm=nn.LayerNorm(normalized_shape=num_classes, eps=1e-6))
         
         # Classifier head
@@ -389,7 +389,7 @@ class Encoder_transformer(nn.Module):
         self.pos_drop = nn.Dropout(p=drop_rate)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         
-        self.encoder = nn.TransformerEncoder(nn.TransformerEncoderLayer(d_model=embed_dim, n_heads=num_heads, dropout=0.1), \
+        self.encoder = nn.TransformerEncoder(nn.TransformerEncoderLayer(d_model=embed_dim, nhead=num_heads, dropout=0.1), \
                                              num_layers=patch_size, norm=nn.LayerNorm(normalized_shape=num_classes, eps=1e-6))
         
         # Classifier head
