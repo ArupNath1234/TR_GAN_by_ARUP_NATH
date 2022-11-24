@@ -281,7 +281,7 @@ class Decoder_transformer(nn.Module):
     
 
 """
-    def __init__(self,N_p=2, N_z=50, img_size=96, patch_size=6, in_chans=3, num_classes=320, embed_dim=108, depth=6,
+    def __init__(self,N_p=2, N_z=50, img_size=96, patch_size=6, in_chans=3, num_classes=318, embed_dim=108, depth=6,
                     num_heads=6, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
                     drop_path_rate=0., norm_layer=nn.LayerNorm):
         super().__init__()
