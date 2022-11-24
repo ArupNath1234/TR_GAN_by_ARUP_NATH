@@ -291,7 +291,7 @@ class Decoder_transformer(nn.Module):
        
         # stochastic depth decay rule
         
-        self.decoder =  nn.TransformerDecoder(nn.TransformerDecoderLayer(d_model=num_classes, nhead=num_heads, dropout=0.1), \
+        self.decoder =  nn.TransformerDecoder(nn.TransformerDecoderLayer(d_model=num_classes, nhead= num_heads, dropout=0.1), \
                                              num_layers=patch_size, norm=nn.LayerNorm(normalized_shape=num_classes, eps=1e-6))
         
         # Classifier head
