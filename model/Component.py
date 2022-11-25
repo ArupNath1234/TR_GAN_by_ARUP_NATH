@@ -392,7 +392,7 @@ class Encoder_transformer(nn.Module):
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         
         self.encoder = nn.TransformerEncoder(nn.TransformerEncoderLayer(d_model=embed_dim, nhead=num_heads, dropout=0.1), \
-                                             num_layers=patch_size, norm=nn.LayerNorm(normalized_shape=num_classes, eps=1e-6))
+                                             num_layers=patch_size, norm=nn.LayerNorm(normalized_shape=embed_dim, eps=1e-6))
         
         # Classifier head
         self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
@@ -409,8 +409,9 @@ class Encoder_transformer(nn.Module):
 
     def forward(self, x, src_mask=None, src_key_padding_mask=None):
             x = self.forward_features(x)
-            output = self.encoder(x, mask=src_mask, src_key_padding_mask=src_key_padding_mask)
-            output = self.head(output)
+            x = self.encoder(x, mask=src_mask, src_key_padding_mask=src_key_padding_mask)
+            x=x[:, 0]
+            output = self.head(x)
             return output
 
 
@@ -428,7 +429,7 @@ class Generator(nn.Module):
     """
     def __init__(self, N_p=2, N_z=50, single=True):
         super(Generator, self).__init__()
-        self.enc = Encoder()
+        self.enc = Encoder_transformer()
         self.dec = Decoder_transformer(N_p, N_z)
 
     def forward(self, input, pose, noise):
