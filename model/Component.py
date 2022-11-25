@@ -346,10 +346,11 @@ class Encoder(nn.Module):
     def forward_features(self, x):
         B = x.shape[0]
         x = self.patch_embed(x)
-
+        print(x)
         cls_tokens = self.cls_token.expand(B, -1, -1)  
         x = torch.cat((cls_tokens, x), dim=1)
         x = x + self.pos_embed
+        print(x)
         x = self.pos_drop(x)
 
         for blk in self.blocks:
@@ -360,6 +361,7 @@ class Encoder(nn.Module):
 
     def forward(self, x):
         x = self.forward_features(x)
+        print(x)
         x = self.head(x)
         return x
 
@@ -426,7 +428,7 @@ class Generator(nn.Module):
     """
     def __init__(self, N_p=2, N_z=50, single=True):
         super(Generator, self).__init__()
-        self.enc = Encoder_transformer()
+        self.enc = Encoder()
         self.dec = Decoder_transformer(N_p, N_z)
 
     def forward(self, input, pose, noise):
