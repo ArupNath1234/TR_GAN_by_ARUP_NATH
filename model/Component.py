@@ -286,25 +286,30 @@ class Decoder_transformer(nn.Module):
                     drop_path_rate=0., norm_layer=nn.LayerNorm):
         super().__init__()
         self.fc = nn.Linear(320+N_p+N_z, 320*6*6)
-        self.embed1 = nn.Embedding(320*6*6, num_classes)
+        self.embed1 = nn.Embedding(96*96,320*6*6)
        
        
         # stochastic depth decay rule
         
-        self.decoder =  nn.TransformerDecoder(nn.TransformerDecoderLayer(d_model=num_classes, nhead= num_heads, dropout=0.1), \
-                                             num_layers=patch_size, norm=nn.LayerNorm(normalized_shape=num_classes, eps=1e-6))
+        self.decoder =  nn.TransformerDecoder(nn.TransformerDecoderLayer(d_model=320*6*6, nhead= num_heads, dropout=0.1), \
+                                             num_layers=patch_size, norm=nn.LayerNorm(normalized_shape=320*6*6, eps=1e-6))
         
         # Classifier head
         self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
 
-    def forward(self, x, src_mask=None, src_key_padding_mask=None):
+    def forward(self, x, src_mask=None, tgt_key_padding_mask=None):
             x = self.fc(x)
-            x=self.embed1(x)
-            output = self.decoder(x, mask=src_mask, src_key_padding_mask=src_key_padding_mask)
+            t= torch.tensor(x).to(torch.int64)
+            print(t.shape)
+            embedded=self.embed1(t)
+            print(embedded.shape)
+            output = self.decoder(embedded, memory=x, tgt_key_padding_mask=tgt_key_padding_mask)
+            print(output.shape)
             output = self.head(output)
-            output=output.view(4, 3, 96, 96)
+            output=output.view(3, 3, 96, 96)
             return output
+
 
 
 
@@ -367,19 +372,21 @@ class Encoder(nn.Module):
 
 class Encoder_transformer(nn.Module):
     """
-    The single version of the Encoder.
+    Args:
+        N_p (int): The sum of the poses
+        N_z (int): The dimensions of the noise
 
-    >>> Enc = Encoder()
-    >>> input = Variable(torch.randn(4, 3, 96, 96))
-    >>> output = Enc(input)
+    >>> Dec = Decoder()
+    >>> input = Variable(torch.randn(4, 372))
+    >>> output = Dec(input)
     >>> output.size()
-    torch.Size([4, 320])
-    """
-    """ Vision Transformer with support for patch or hybrid CNN input stage
-    """
-    def __init__(self, img_size=96, patch_size=6, in_chans=3, num_classes=320, embed_dim=108, depth=6,
-                 num_heads=6, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
-                 drop_path_rate=0., norm_layer=nn.LayerNorm):
+    torch.Size([4, 3, 96, 96])
+    
+
+"""
+    def __init__(self,N_p=2, N_z=50, img_size=96, patch_size=6, in_chans=3, num_classes=318, embed_dim=124, depth=6,
+                    num_heads=4, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0., 
+                    drop_path_rate=0., norm_layer=nn.LayerNorm):
         super().__init__()
         self.num_classes = num_classes
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
@@ -395,7 +402,7 @@ class Encoder_transformer(nn.Module):
                                              num_layers=patch_size, norm=nn.LayerNorm(normalized_shape=embed_dim, eps=1e-6))
         
         # Classifier head
-        self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+        self.head = nn.Linear(embed_dim, 96*96) if num_classes > 0 else nn.Identity()
 
     def forward_features(self, x):
         B = x.shape[0]
@@ -408,12 +415,16 @@ class Encoder_transformer(nn.Module):
         return x
 
     def forward(self, x, src_mask=None, src_key_padding_mask=None):
-            x = self.forward_features(x)
+            #print(x.shape)
+            #x = self.forward_features(x)
+            #print(x.shape)
+            x=x.view(3,3,124)
             x = self.encoder(x, mask=src_mask, src_key_padding_mask=src_key_padding_mask)
-            x=x[:, 0]
+            #print(x.shape)
             output = self.head(x)
-            return output
-
+            output=output.view(3,3,96,96)
+            #print(output.shape)
+            return output  
 
 class Generator(nn.Module):
     """
