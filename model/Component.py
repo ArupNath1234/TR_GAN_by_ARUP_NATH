@@ -286,16 +286,16 @@ class Decoder_transformer(nn.Module):
                     drop_path_rate=0., norm_layer=nn.LayerNorm):
         super().__init__()
         self.fc = nn.Linear(320+N_p+N_z, 320*6*6)
-        self.embed1 = nn.Embedding(96*96,320*6*6)
+        self.embed1 = nn.Embedding(320*6*6,96*96)
        
        
         # stochastic depth decay rule
         
-        self.decoder =  nn.TransformerDecoder(nn.TransformerDecoderLayer(d_model=320*6*6, nhead= num_heads, dropout=0.1), \
-                                             num_layers=patch_size, norm=nn.LayerNorm(normalized_shape=320*6*6, eps=1e-6))
+        self.decoder =  nn.TransformerEncoder(nn.TransformerEncoderLayer(d_model=96*96, nhead= num_heads, dropout=0.1), \
+                                             num_layers=patch_size, norm=nn.LayerNorm(normalized_shape=96*96, eps=1e-6))
         
         # Classifier head
-        self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+        self.head = nn.Linear(96*96, 3*96*96) if num_classes > 0 else nn.Identity()
 
 
     def forward(self, x, src_mask=None, tgt_key_padding_mask=None):
@@ -304,7 +304,7 @@ class Decoder_transformer(nn.Module):
             print(t.shape)
             embedded=self.embed1(t)
             print(embedded.shape)
-            output = self.decoder(embedded, memory=x, tgt_key_padding_mask=tgt_key_padding_mask)
+            output = self.decoder(embedded, mask=src_mask, src_key_padding_mask=None)
             print(output.shape)
             output = self.head(output)
             output=output.view(3, 3, 96, 96)
