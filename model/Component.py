@@ -51,50 +51,110 @@ def weights_init_normal(m):
         init.uniform_(m.weight.data, 0.02, 1)
         init.constant_(m.bias.data, 0.0)
 
-class Mlp(nn.Module):
-    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
-        super().__init__()
-        out_features = out_features or in_features
-        hidden_features = hidden_features or in_features
-        self.fc1 = nn.Linear(in_features, hidden_features)
-        self.act = act_layer()
-        self.fc2 = nn.Linear(hidden_features, out_features)
-        self.drop = nn.Dropout(drop)
+class MLP(nn.Module):
+    """Multi layer perception.
+     parameter:
+     in_features:int 
+     hidden_features: int
+     out_features: int
+     p: dropout probability
+    
+     Attribute:
+     fc:nn.Linear  first linear layer
+     act:nn.GELU  GELU activation function
+     fc2: nn.linear second linear layer
+     drop: nn.Dropout
+     Dropout layer
 
-    def forward(self, x):
-        x = self.fc1(x)
-        x = self.act(x)
-        x = self.drop(x)
-        x = self.fc2(x)
-        x = self.drop(x)
+      """
+
+    def __init__(self,in_features,hidden_features,out_features,p=0.):
+        super().__init__()
+        self.fc1=nn.Linear(in_features,hidden_features)
+        self.act=nn.GELU()
+        self.fc2=nn.Linear(hidden_features,out_features)
+        self.drop=nn.Dropout()
+    
+    def forward(self,x):
+        """
+        input:
+        (n_samples,patches+1,in_features)
+
+        output:
+        (n_samples,patches+1,out_features)
+        
+        """
+        x=self.fc1(x) #(n_samples,patches+1,hidden_features)
+        x=self.act(x) #(n_samples,patches+1,hidden_features)
+        x=self.drop(x) #(n_samples,patches+1,hidden_features)
+        x=self.fc2(x) #(n_samples,patches+1,out_features)
+        x=self.drop(x) #(n_samples,patches+1,out_features)
+
         return x
         
 class Attention(nn.Module):
-    def __init__(self, dim, num_heads=6, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
+    """Attention mechanism
+    parameter:
+    dim: int  (input  and output dimension of per token feature)
+    n_heads : int (Number of attention heads)
+    qkv_bias: bool (if true we include bias to query, key and value projections)
+    attn_p:float (Dropout probability applied to the query, key and value tensors)
+    proj_p: float (Dropout probability applied to the output tensor)
+
+
+    attributes:
+    scale:float (normalized constant for the dot product )
+    qkv:nn.linear  (linear projection for the query,key and value.)
+    proj:nn.linear (linear mapping that takes in concatenated output of all attention heads and maps into a new space)
+    attn_drop,proj_drop: nn.Dropout layers
+
+    """
+    def __init__(self,dim,n_heads=6,qkv_bias=True,attn_p=0., proj_p=0.):
         super().__init__()
-        self.num_heads = num_heads
-        head_dim = dim // num_heads
-        # NOTE scale factor was wrong in my original version, can set manually to be compat with prev weights
-        self.scale = qk_scale or head_dim ** -0.5
+        self.n_heads=n_heads
+        self.dim=dim
+        self.head_dim=dim//n_heads
+        self.scale=self.head_dim **-0.5
+        self.qkv=nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.attn_drop=nn.Dropout(attn_p)
+        self.proj=nn.Linear(dim,dim)
+        self.proj_p=nn.Dropout(proj_p)
 
-        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
-        self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
-        self.proj_drop = nn.Dropout(proj_drop)
 
-    def forward(self, x):
-        B, N, C = x.shape
-        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]   # make torchscript happy (cannot use tensor as tuple)
+    def forward(self,x):
+        """
+        input x: torch tensor(shape (n_samples,n_patches+1,dim))
 
-        attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
+        output: torch tensor(shape(n_samples,n_patches+1,dim))
+        """
 
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
-        x = self.proj(x)
-        x = self.proj_drop(x)
+        n_samples,n_tokens, dim=x.shape
+        if dim!=self.dim:
+            raise ValueError
+        qkv=self.qkv(x) # (n_samples,n_patches+1,3*dim) 
+        qkv=qkv.reshape(n_samples,n_tokens,3,self.n_heads,self.head_dim) #(n_samples,n_patches+1,3,n_heads,head_dim)
+        qkv=qkv.permute(2,0,3,1,4) #(3,n_samples,n_heads,n_patches+1,head_dim)
+
+        q,k,v=qkv[0],qkv[1],qkv[2]
+        k_t=k.transpose(-2,-1)  #(n_samples,n_heads,head_dim,n_patches+1)
+        
+        dp=(q@k_t)*self.scale #(n_samples,n_heads,patches+1,patches+1)
+
+        attn=dp.softmax(dim=-1) #(n_samples,n_heads,patches+1,patches+1)
+        attn=self.attn_drop(attn)
+
+        weighted_avg=attn@v #(n_samples,n_heads,patches+1,head_dim)
+
+        weighted_avg= weighted_avg.transpose(1,2) #(n_samples,patches+1,n_heads,head_dim)
+
+        weighted_avg=weighted_avg.flatten(2) #(n_samples,patches+1,dim)
+
+        x=self.proj(weighted_avg)  #(n_samples,patches+1,dim)
+
+        x=self.proj_p(x)  #(n_samples,patches+1,dim)
+
         return x
+
 def drop_path(x, drop_prob: float = 0., training: bool = False, scale_by_keep: bool = True):
     if drop_prob == 0. or not training:
         return x
@@ -116,51 +176,98 @@ class DropPath(nn.Module):
     def forward(self, x):
         return drop_path(x, self.drop_prob, self.training, self.scale_by_keep)
 class Block(nn.Module):
+    """ Transformer Block
+    Parameter:
 
-    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm):
-        super().__init__()
-        self.norm1 = norm_layer(dim)
-        self.attn = Attention(
-            dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
-        # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.norm2 = norm_layer(dim)
-        mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+    dim: int 
+     embedded dimension
 
-    def forward(self, x):
-        x = x + self.drop_path(self.attn(self.norm1(x)))
-        x = x + self.drop_path(self.mlp(self.norm2(x)))
-        return x
-class PatchEmbed(nn.Module):
-    """ Image to Patch Embedding
-    """
+    n_heads: int 
+      number of attention heads
     
-    def __init__(self, img_size=96, patch_size=6, in_chans=3, embed_dim=108):
+    mlp_ratio: float
+    determines the hidden dimension size of MLP module with respect to dim.
+
+    qkv_bias: bool
+    If true then we include bias to the query, key and value projections.
+
+    p,attn_p: float
+
+    Dropout probability
+
+    
+
+
+    attribute:
+
+    norm1,norm2: LayerNorm
+    layer normalization
+
+    attn: Attention Attention module
+
+    mlp:MLP MLP module.
+    """
+
+    def __init__(self,dim,n_heads,mlp_ratio=4.0,qkv_bias=True,p=0,attn_p=0.0):
         super().__init__()
-        def _ntuple(n):
-            def parse(x):
-                if isinstance(x, collections.abc.Iterable):
-                    return x
-                return tuple(repeat(x, n))
-            return parse
-        to_2tuple = _ntuple(2)
-        
-        img_size = to_2tuple(img_size)
-        patch_size = to_2tuple(patch_size)
-        num_patches = (img_size[1] // patch_size[1]) * (img_size[0] // patch_size[0])
-        self.img_size = img_size
-        self.patch_size = patch_size
-        self.num_patches = num_patches
+        self.norm1=nn.LayerNorm(dim,eps=1e-6)
+        self.attn=Attention(dim,n_heads=n_heads,qkv_bias=qkv_bias,attn_p=attn_p,proj_p=p)
 
-        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
+        self.norm2=nn.LayerNorm(dim,eps=1e-6)
 
-    def forward(self, x):
-        B, C, H, W = x.shape
-        assert H == self.img_size[0] and W == self.img_size[1], \
-            f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
-        x = self.proj(x).flatten(2).transpose(1, 2)
+        hidden_features= int(dim*mlp_ratio)
+
+        self.mlp=MLP(in_features=dim,hidden_features=hidden_features,out_features=dim)
+    
+
+    def forward(self,x):
+        """
+        input x:(n_samples,n_patches+1,dim)
+        output x:(n_samples,n_patches+1,dim)
+        """
+
+
+        x=x+self.attn(self.norm1(x))
+        y=self.mlp(self.norm2(x))
+        x=x+y
+
+        return x
+
+class PatchEmbed(nn.Module):
+    """split image into patches and embed them
+    Parameters:
+    img_size:int(2dimension)
+    patch_size:int(2dimension)
+    in_chans:int(number of input channels: for RGB its 3)
+    embed_dim: int (the embeding dimension)
+    
+    Attributes:
+    n_patches:int number of patches(h*w/n^2)
+    proj: nn.Conv2d
+     splitting into patches and embedding
+    """
+
+    def __init__(self,img_size=96,patch_size=6,in_chans=3,embed_dim=108):
+        super().__init__()
+        self.img_size=img_size
+        self.patch_size=patch_size
+        self.n_patches=(img_size//patch_size)**2
+
+        self.proj=nn.Conv2d(in_chans,embed_dim,kernel_size=patch_size,stride=patch_size)
+
+    def forward(self,x):
+        """
+        parameter:
+        x:torch tensor(n_samples,embed_dim,n_patches**0.5,n_patches**0.5)
+
+        return:
+        x:torch tensor(n_samples,n_patches,embed_dim)
+
+        """
+        x=self.proj(x) #(n_samples,embed_dim,n_patches**0.5,n_patches**0.5)
+        x=x.flatten(2) #(n_samples,embed_dim,n_patches)
+        x=x.transpose(1,2) #(n_samples,n_patches,embed_dim)
+
         return x
         
 class conv_unit(nn.Module):
@@ -301,11 +408,10 @@ class Decoder_transformer(nn.Module):
     def forward(self, x, src_mask=None, tgt_key_padding_mask=None):
             x = self.fc(x)
             t= torch.tensor(x).to(torch.int64)
-            print(t.shape)
+        
             embedded=self.embed1(t)
-            print(embedded.shape)
+      
             output = self.decoder(embedded, mask=src_mask, src_key_padding_mask=None)
-            print(output.shape)
             output = self.head(output)
             output=output.view(3, 3, 96, 96)
             return output
@@ -325,49 +431,54 @@ class Encoder(nn.Module):
     """
     """ Vision Transformer with support for patch or hybrid CNN input stage
     """
-    def __init__(self, img_size=96, patch_size=6, in_chans=3, num_classes=320, embed_dim=108, depth=6,
-                 num_heads=6, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
-                 drop_path_rate=0., norm_layer=nn.LayerNorm):
+    def __init__(self, img_size=96, patch_size=6, in_chans=3, n_classes=320, embed_dim=108, depth=6,
+                 n_heads=6, mlp_ratio=4., qkv_bias=True, p=0.,attn_p=0.):
         super().__init__()
-        self.num_classes = num_classes
-        self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
-        self.patch_embed = PatchEmbed(
-            img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
-        num_patches = self.patch_embed.num_patches
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
-        self.pos_drop = nn.Dropout(p=drop_rate)
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
-        self.blocks = nn.ModuleList([
+        self.patch_embed=PatchEmbed(img_size=img_size,patch_size=patch_size,in_chans=in_chans,embed_dim=embed_dim)
+        self.class_token=nn.Parameter(torch.zeros(1,1,embed_dim)) # declare the class token
+        self.pos_embed= nn.Parameter(torch.zeros(1,1+self.patch_embed.n_patches,embed_dim))
+
+        self.pos_drop=nn.Dropout(p=p)
+
+        self.blocks=nn.ModuleList([
             Block(
-                dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer)
-            for i in range(depth)])
-        self.norm = norm_layer(embed_dim)
-        
-        # Classifier head
-        self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+                dim=embed_dim,
+                n_heads=n_heads,
+                mlp_ratio=mlp_ratio,
+                qkv_bias=qkv_bias,
+                p=p,
+                attn_p=attn_p
+            )
+            for _ in range(depth)
+        ])
 
-    def forward_features(self, x):
-        B = x.shape[0]
-        x = self.patch_embed(x)
-        print(x)
-        cls_tokens = self.cls_token.expand(B, -1, -1)  
-        x = torch.cat((cls_tokens, x), dim=1)
-        x = x + self.pos_embed
-        print(x)
-        x = self.pos_drop(x)
+        self.norm=nn.LayerNorm(embed_dim,eps=1e-6)
+        self.head=nn.Linear(embed_dim,n_classes)
 
-        for blk in self.blocks:
-            x = blk(x)
 
-        x = self.norm(x)
-        return x[:, 0]
+    def forward(self,x):
+        """
+        input:(n_samples,in_chans,img_size,img_size)
 
-    def forward(self, x):
-        x = self.forward_features(x)
-        print(x)
-        x = self.head(x)
+        output: (n_samples,n_classes)
+        """
+        n_samples=x.shape[0]
+        x=self.patch_embed(x)
+        class_token=self.class_token.expand(n_samples,-1,-1)  #(n_samples,1,embed_dim)
+        x=torch.cat((class_token,x), dim=1)  #(n_samples,1+patches,embed_dim)
+        x=x + self.pos_embed #(n_samples,1+patches,embed_dim)
+
+        x=self.pos_drop(x)
+
+        for block in self.blocks:
+            x=block(x)
+
+        x=self.norm(x)
+
+        class_token_final=x[:,0]
+
+        x=self.head(class_token_final)
+
         return x
 
 class Encoder_transformer(nn.Module):
@@ -440,8 +551,8 @@ class Generator(nn.Module):
     """
     def __init__(self, N_p=2, N_z=50, single=True):
         super(Generator, self).__init__()
-        self.enc = Encoder_transformer()
-        self.dec = Decoder_transformer(N_p, N_z)
+        self.enc = Encoder()
+        self.dec = Decoder(N_p, N_z)
 
     def forward(self, input, pose, noise):
         x = self.enc(input)
@@ -464,7 +575,7 @@ class Discriminator(nn.Module):
     def __init__(self, N_p=2, N_d=500):
         super(Discriminator, self).__init__()
         #Because Discriminator uses same architecture as that of Encoder
-        self.enc = Encoder_transformer() 
+        self.enc = Encoder() 
         self.fc = nn.Linear(320, N_d+N_p+1)
 
     def forward(self,input):
