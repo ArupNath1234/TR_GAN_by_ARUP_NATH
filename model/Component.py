@@ -230,34 +230,35 @@ class Decoder(nn.Module):
     >>> output.size()
     torch.Size([4, 3, 96, 96])
     """
-    def __init__(self, N_p=2, N_z=50):
-        super(Decoder, self).__init__()
-        Fconv_layers = [
-            Fconv_unit(320, 160),                   #Bx160x6x6
-            Fconv_unit(160, 256),                   #Bx256x6x6
-            Fconv_unit(256, 256, unsampling=True),  #Bx256x12x12
-            Fconv_unit(256, 128),                   #Bx128x12x12
-            Fconv_unit(128, 192),                   #Bx192x12x12
-            Fconv_unit(192, 192, unsampling=True),  #Bx192x24x24
-            Fconv_unit(192, 96),                    #Bx96x24x24
-            Fconv_unit(96, 128),                    #Bx128x24x24
-            Fconv_unit(128, 128, unsampling=True),  #Bx128x48x48
-            Fconv_unit(128, 64),                    #Bx64x48x48
-            Fconv_unit(64, 64),                     #Bx64x48x48
-            Fconv_unit(64, 64, unsampling=True),    #Bx64x96x96
-            Fconv_unit(64, 32),                     #Bx32x96x96
-            Fconv_unit(32, 3)                       #Bx3x96x96
-        ]
+    def __init__(self,N_p=2, N_z=50, img_size=96, patch_size=6, in_chans=3, num_classes=318, embed_dim=108, depth=6,
+                    num_heads=6, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0., 
+                    drop_path_rate=0., norm_layer=nn.LayerNorm):
+        super().__init__()
+        self.fc = nn.Linear(320+N_p+N_z, 512)
+        self.embed1 = nn.Embedding(108,embed_dim)
+       
+       
+        # stochastic depth decay rule
+        
+        self.decoder =  nn.TransformerEncoder(nn.TransformerEncoderLayer(d_model=embed_dim, nhead= num_heads, dropout=0.1), \
+                                             num_layers=patch_size, norm=nn.LayerNorm(normalized_shape=embed_dim, eps=1e-6))
+        
+        # Classifier head
+        self.head = nn.Linear(embed_dim, 3*96*96)
 
-        self.Fconv_layers = nn.Sequential(*Fconv_layers)
-        self.fc = nn.Linear(320+N_p+N_z, 320*6*6)
 
-    def forward(self, input):
-        x = self.fc(input)
-        x = x.view(-1, 320, 6, 6)
-        x = self.Fconv_layers(x)
-        return x
-
+    def forward(self, x, src_mask=None, tgt_key_padding_mask=None):
+            #print(x.shape)
+            x = self.fc(x)
+            t= torch.tensor(x).to(torch.int64)
+            #print(t.shape)
+            embedded=self.embed1(t)
+            #print(embedded.shape)
+            output = self.decoder(embedded, mask=src_mask, src_key_padding_mask=None)
+            class_token=output[:,0]
+            output = self.head(class_token)
+            output=output.view(3, 3, 96, 96)
+            return output
 
 
 class Encoder(nn.Module):
