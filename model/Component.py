@@ -393,7 +393,7 @@ class Decoder_transformer(nn.Module):
                     drop_path_rate=0., norm_layer=nn.LayerNorm):
         super().__init__()
         self.fc = nn.Linear(320+N_p+N_z, 320*6*6)
-        self.embed1 = nn.Embedding(320*6*6,96*96)
+        self.embed1 = nn.Embedding(320,96*96)
        
        
         # stochastic depth decay rule
@@ -406,11 +406,12 @@ class Decoder_transformer(nn.Module):
 
 
     def forward(self, x, src_mask=None, tgt_key_padding_mask=None):
+            print(x.shape)
             x = self.fc(x)
             t= torch.tensor(x).to(torch.int64)
-        
+            print(t.shape)
             embedded=self.embed1(t)
-      
+            print(embedded.shape)
             output = self.decoder(embedded, mask=src_mask, src_key_padding_mask=None)
             output = self.head(output)
             output=output.view(3, 3, 96, 96)
@@ -474,9 +475,7 @@ class Encoder(nn.Module):
             x=block(x)
 
         x=self.norm(x)
-
         class_token_final=x[:,0]
-
         x=self.head(class_token_final)
 
         return x
@@ -552,7 +551,7 @@ class Generator(nn.Module):
     def __init__(self, N_p=2, N_z=50, single=True):
         super(Generator, self).__init__()
         self.enc = Encoder()
-        self.dec = Decoder(N_p, N_z)
+        self.dec = Decoder_transformer(N_p, N_z)
 
     def forward(self, input, pose, noise):
         x = self.enc(input)
