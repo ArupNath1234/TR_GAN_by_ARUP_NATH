@@ -11,7 +11,7 @@ def CreateDataLoader(opt):
     sys.path.append('/home/zhangjunhao/data')
     from dataset import FDDataset
     transform = transforms.Compose([
-        transforms.Scale((100, 100)),       #Switch to the transforms.Resize on the service
+        transforms.Resize((100, 100)),       #Switch to the transforms.Resize on the service
         transforms.RandomCrop(96),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
